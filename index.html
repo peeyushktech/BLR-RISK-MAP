@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Bangalore Risk & Choke Point Map</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
+<style>
+:root{
+  --bg:#f5f4f0;
+  --surface:#ffffff;
+  --panel:#ffffff;
+  --border:#e2e0db;
+  --border2:#d0cdc7;
+  --text:#1a1917;
+  --muted:#6b6860;
+  --muted2:#9b9890;
+  --accent:#c0392b;
+  --red:#dc2626;
+  --red-light:#fef2f2;
+  --amber:#d97706;
+  --amber-light:#fffbeb;
+  --orange:#ea580c;
+  --orange-light:#fff7ed;
+  --purple:#7c3aed;
+  --purple-light:#f5f3ff;
+  --blue:#1d4ed8;
+  --blue-light:#eff6ff;
+  --green:#15803d;
+  --green-light:#f0fdf4;
+  --teal:#0f766e;
+  --shadow:0 1px 3px rgba(0,0,0,0.08),0 1px 2px rgba(0,0,0,0.06);
+  --shadow-md:0 4px 6px rgba(0,0,0,0.07),0 2px 4px rgba(0,0,0,0.05);
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;font-family:'Manrope',sans-serif;background:var(--bg);color:var(--text);overflow:hidden;}
+
+/* ── HEADER ─────────────────────────────────────────── */
+#header{
+  position:fixed;top:0;left:0;right:0;z-index:1000;
+  height:52px;
+  background:rgba(255,255,255,0.94);
+  backdrop-filter:blur(16px);
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;padding:0 18px;gap:14px;
+  box-shadow:0 1px 0 var(--border);
+}
+.logo{
+  display:flex;align-items:center;gap:8px;
+}
+.logo-dot{
+  width:8px;height:8px;border-radius:50%;background:var(--accent);
+  box-shadow:0 0 0 3px rgba(192,57,43,0.15);
+}
+#header h1{
+  font-family:'JetBrains Mono',monospace;
+  font-size:12px;font-weight:600;letter-spacing:0.05em;
+  color:var(--text);text-transform:uppercase;white-space:nowrap;
+}
+.header-sep{width:1px;height:20px;background:var(--border);flex-shrink:0;}
+.header-sub{font-size:12px;color:var(--muted);font-weight:400;}
+.header-pills{display:flex;gap:6px;margin-left:auto;}
+.pill{
+  font-size:10px;padding:3px 9px;border-radius:100px;
+  border:1px solid var(--border);color:var(--muted);
+  font-family:'JetBrains Mono',monospace;letter-spacing:0.03em;
+  background:var(--bg);
+}
+.pill.live{border-color:rgba(21,128,61,0.4);color:var(--green);background:var(--green-light);}
+.pulse{display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--green);margin-right:4px;animation:pulse 1.8s ease infinite;vertical-align:middle;}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1);}50%{opacity:0.35;transform:scale(0.6);}}
+
+/* ── MAP ─────────────────────────────────────────────── */
+#map{position:fixed;top:52px;left:0;right:0;bottom:0;z-index:1;}
+
+/* ── SIDEBAR ─────────────────────────────────────────── */
+#panel{
+  position:fixed;top:52px;right:0;bottom:0;z-index:500;
+  width:290px;
+  background:var(--panel);
+  border-left:1px solid var(--border);
+  display:flex;flex-direction:column;overflow:hidden;
+}
+#panel-header{
+  padding:14px 16px 12px;
+  border-bottom:1px solid var(--border);
+  background:var(--bg);
+}
+#panel-header h2{
+  font-family:'JetBrains Mono',monospace;
+  font-size:10px;font-weight:600;letter-spacing:0.08em;
+  text-transform:uppercase;color:var(--muted);margin-bottom:10px;
+}
+.filter-group{display:flex;flex-direction:column;gap:4px;}
+.filter-btn{
+  display:flex;align-items:center;gap:9px;
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:8px;padding:7px 11px;cursor:pointer;
+  color:var(--text);font-family:'Manrope',sans-serif;
+  font-size:12px;font-weight:500;transition:all 0.12s;text-align:left;width:100%;
+}
+.filter-btn:hover{border-color:var(--border2);background:var(--bg);}
+.filter-btn.active{background:var(--text);border-color:var(--text);color:white;}
+.filter-btn.active .filter-dot-label{color:rgba(255,255,255,0.7);}
+.filter-btn .count{margin-left:auto;font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;background:var(--bg);padding:1px 6px;border-radius:100px;border:1px solid var(--border);}
+.filter-btn.active .count{background:rgba(255,255,255,0.15);border-color:rgba(255,255,255,0.2);color:rgba(255,255,255,0.8);}
+.filter-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+
+#zone-list{flex:1;overflow-y:auto;padding:8px 0 12px;}
+#zone-list::-webkit-scrollbar{width:3px;}
+#zone-list::-webkit-scrollbar-track{background:transparent;}
+#zone-list::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px;}
+
+.list-section-label{
+  font-size:10px;font-weight:600;letter-spacing:0.07em;text-transform:uppercase;
+  color:var(--muted2);padding:8px 16px 4px;font-family:'JetBrains Mono',monospace;
+}
+.zone-card{
+  margin:3px 8px;padding:10px 12px;
+  border-radius:9px;border:1px solid var(--border);
+  cursor:pointer;transition:all 0.12s;background:var(--surface);
+}
+.zone-card:hover{border-color:var(--border2);box-shadow:var(--shadow);}
+.zone-card.selected{border-color:var(--text);box-shadow:var(--shadow-md);}
+.zone-card-header{display:flex;align-items:flex-start;gap:7px;margin-bottom:5px;}
+.zone-card-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;margin-top:3px;}
+.zone-card-name{font-size:12px;font-weight:600;color:var(--text);line-height:1.35;flex:1;}
+.zone-tag{font-size:9px;font-weight:600;letter-spacing:0.05em;padding:2px 6px;border-radius:100px;white-space:nowrap;font-family:'JetBrains Mono',monospace;flex-shrink:0;}
+.zone-card-meta{display:flex;gap:10px;flex-wrap:wrap;padding-left:14px;}
+.zone-meta-item{font-size:11px;color:var(--muted);}
+.zone-meta-item span{color:var(--text);font-weight:500;}
+
+/* ── INFO BOX ────────────────────────────────────────── */
+#infobox{
+  position:fixed;bottom:18px;left:18px;z-index:600;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:14px;padding:16px 18px;width:330px;
+  display:none;
+  box-shadow:var(--shadow-md);
+  animation:slideup 0.18s ease;
+}
+@keyframes slideup{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+#infobox .ib-typetag{
+  display:inline-block;font-size:9px;font-weight:600;letter-spacing:0.07em;
+  padding:3px 8px;border-radius:100px;font-family:'JetBrains Mono',monospace;
+  margin-bottom:7px;
+}
+#infobox h3{font-size:14px;font-weight:700;margin-bottom:2px;color:var(--text);line-height:1.3;}
+.ib-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin:12px 0 0;}
+.ib-stat{background:var(--bg);border-radius:8px;padding:8px 10px;border:1px solid var(--border);}
+.ib-stat-val{font-size:14px;font-weight:700;color:var(--text);font-family:'JetBrains Mono',monospace;}
+.ib-stat-lbl{font-size:10px;color:var(--muted);margin-top:1px;}
+#infobox .ib-desc{font-size:12px;color:var(--muted);line-height:1.65;margin-top:10px;border-top:1px solid var(--border);padding-top:10px;}
+#ib-close{position:absolute;top:12px;right:14px;background:var(--bg);border:1px solid var(--border);color:var(--muted);font-size:14px;cursor:pointer;line-height:1;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;}
+#ib-close:hover{color:var(--text);border-color:var(--border2);}
+.ib-causes{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px;}
+.cause-tag{font-size:10px;padding:2px 7px;border-radius:100px;background:var(--bg);border:1px solid var(--border);color:var(--muted);}
+
+/* ── SUMMARY ─────────────────────────────────────────── */
+#summary{
+  position:fixed;top:62px;left:50%;transform:translateX(calc(-50% - 145px));
+  z-index:600;display:flex;
+  background:var(--surface);
+  border:1px solid var(--border);border-radius:10px;
+  overflow:hidden;box-shadow:var(--shadow);
+}
+.sum-item{padding:7px 14px;text-align:center;border-right:1px solid var(--border);}
+.sum-item:last-child{border-right:none;}
+.sum-val{font-size:15px;font-weight:700;font-family:'JetBrains Mono',monospace;}
+.sum-lbl{font-size:9px;color:var(--muted);margin-top:1px;font-weight:500;letter-spacing:0.03em;}
+
+/* ── CONTROLS ────────────────────────────────────────── */
+#controls{
+  position:fixed;top:62px;left:18px;z-index:600;
+  display:flex;flex-direction:column;gap:7px;
+}
+.ctrl-card{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:10px;padding:10px 13px;
+  box-shadow:var(--shadow);min-width:172px;
+}
+.ctrl-label{font-size:9px;font-family:'JetBrains Mono',monospace;letter-spacing:0.07em;text-transform:uppercase;color:var(--muted);margin-bottom:6px;font-weight:600;}
+.ctrl-select{
+  width:100%;background:var(--bg);border:1px solid var(--border);
+  border-radius:6px;padding:5px 8px;color:var(--text);font-size:12px;font-weight:500;
+  font-family:'Manrope',sans-serif;outline:none;cursor:pointer;
+}
+.ctrl-select:focus{border-color:var(--border2);}
+
+/* ── LEGEND ──────────────────────────────────────────── */
+#legend{
+  position:fixed;bottom:18px;right:306px;z-index:600;
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:10px;padding:12px 14px;
+  box-shadow:var(--shadow);min-width:170px;
+}
+#legend h4{font-size:9px;font-family:'JetBrains Mono',monospace;letter-spacing:0.07em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;font-weight:600;}
+.legend-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:11px;color:var(--muted);font-weight:500;}
+.legend-swatch{width:14px;height:14px;border-radius:3px;flex-shrink:0;}
+.legend-divider{height:1px;background:var(--border);margin:7px 0;}
+
+/* Leaflet overrides */
+.leaflet-control-zoom{
+  border:1px solid var(--border) !important;
+  border-radius:10px !important;
+  overflow:hidden;
+  box-shadow:var(--shadow) !important;
+}
+.leaflet-control-zoom a{
+  background:var(--surface) !important;color:var(--text) !important;
+  border-color:var(--border) !important;font-size:16px !important;line-height:26px !important;
+}
+.leaflet-control-zoom a:hover{background:var(--bg) !important;}
+.leaflet-control-attribution{
+  background:rgba(255,255,255,0.85) !important;
+  font-size:9px !important;border-radius:6px 0 0 0 !important;
+  color:var(--muted2) !important;
+}
+.leaflet-popup-content-wrapper{
+  border-radius:10px !important;border:1px solid var(--border) !important;
+  box-shadow:var(--shadow-md) !important;
+}
+</style>
+</head>
+<body>
+
+<div id="header">
+  <div class="logo">
+    <div class="logo-dot"></div>
+    <h1>BLR Risk Map</h1>
+  </div>
+  <div class="header-sep"></div>
+  <span class="header-sub">Flood zones · Traffic choke points · 2023–24</span>
+  <div class="header-pills">
+    <span class="pill live"><span class="pulse"></span>OSM tiles</span>
+    <span class="pill">BBMP · BDA · TomTom</span>
+    <span class="pill">Annual monsoon data</span>
+  </div>
+</div>
+
+<div id="map"></div>
+
+<!-- Controls top-left -->
+<div id="controls">
+  <div class="ctrl-card">
+    <div class="ctrl-label">Weather condition</div>
+    <select class="ctrl-select" id="wx-select" onchange="applyWx()">
+      <option value="1.0">☀ Clear / Dry</option>
+      <option value="1.25">🌦 Light rain</option>
+      <option value="1.55" selected>🌧 Monsoon / Heavy rain</option>
+      <option value="1.8">⛈ Flooding / Extreme</option>
+    </select>
+  </div>
+  <div class="ctrl-card">
+    <div class="ctrl-label">Time of day</div>
+    <select class="ctrl-select" id="tod-select" onchange="applyWx()">
+      <option value="1.0">Off-peak (10am – 5pm)</option>
+      <option value="1.4" selected>Morning peak (7 – 10am)</option>
+      <option value="1.45">Evening peak (5 – 9pm)</option>
+      <option value="0.75">Night (10pm – 6am)</option>
+    </select>
+  </div>
+</div>
+
+<!-- Summary bar -->
+<div id="summary">
+  <div class="sum-item"><div class="sum-val" id="s-total" style="color:var(--text)">0</div><div class="sum-lbl">Total zones</div></div>
+  <div class="sum-item"><div class="sum-val" id="s-flood" style="color:var(--red)">0</div><div class="sum-lbl">Flood risk</div></div>
+  <div class="sum-item"><div class="sum-val" id="s-choke" style="color:var(--orange)">0</div><div class="sum-lbl">Choke points</div></div>
+  <div class="sum-item"><div class="sum-val" id="s-both" style="color:var(--purple)">0</div><div class="sum-lbl">Dual risk</div></div>
+</div>
+
+<!-- Sidebar -->
+<div id="panel">
+  <div id="panel-header">
+    <h2>Filter by type</h2>
+    <div class="filter-group">
+      <button class="filter-btn active" onclick="setFilter(this,'all')">
+        <span class="filter-dot" style="background:var(--muted)"></span>All zones
+        <span class="count" id="fc-all">—</span>
+      </button>
+      <button class="filter-btn" onclick="setFilter(this,'flood')">
+        <span class="filter-dot" style="background:var(--red)"></span>Flood prone
+        <span class="count" id="fc-flood">—</span>
+      </button>
+      <button class="filter-btn" onclick="setFilter(this,'choke')">
+        <span class="filter-dot" style="background:var(--orange)"></span>Traffic choke point
+        <span class="count" id="fc-choke">—</span>
+      </button>
+      <button class="filter-btn" onclick="setFilter(this,'both')">
+        <span class="filter-dot" style="background:var(--purple)"></span>Both risks
+        <span class="count" id="fc-both">—</span>
+      </button>
+    </div>
+  </div>
+  <div id="zone-list"></div>
+</div>
+
+<!-- Legend -->
+<div id="legend">
+  <h4>Map legend</h4>
+  <div class="legend-row"><div class="legend-swatch" style="background:rgba(220,38,38,0.35);border:1.5px solid rgba(220,38,38,0.7)"></div>Flood critical</div>
+  <div class="legend-row"><div class="legend-swatch" style="background:rgba(245,158,11,0.3);border:1.5px solid rgba(245,158,11,0.7)"></div>Flood high</div>
+  <div class="legend-row"><div class="legend-swatch" style="background:rgba(234,88,12,0.3);border:1.5px solid rgba(234,88,12,0.7)"></div>Traffic choke</div>
+  <div class="legend-row"><div class="legend-swatch" style="background:rgba(124,58,237,0.25);border:1.5px solid rgba(124,58,237,0.7)"></div>Both risks</div>
+  <div class="legend-divider"></div>
+  <div class="legend-row" style="font-size:10px;gap:6px;"><span style="letter-spacing:2px;color:var(--muted);font-size:11px;">— —</span> High risk</div>
+  <div class="legend-row" style="font-size:10px;gap:6px;"><span style="color:var(--muted);font-size:13px;">——</span> Critical</div>
+  <div class="legend-divider"></div>
+  <div class="legend-row"><div style="width:10px;height:10px;border-radius:50%;background:#1d4ed8;flex-shrink:0;"></div>Airport / Station</div>
+</div>
+
+<!-- Info box -->
+<div id="infobox">
+  <button id="ib-close" onclick="document.getElementById('infobox').style.display='none'">×</button>
+  <div class="ib-typetag" id="ib-typetag"></div>
+  <h3 id="ib-name"></h3>
+  <div class="ib-grid">
+    <div class="ib-stat"><div class="ib-stat-val" id="ib-risk"></div><div class="ib-stat-lbl">Risk level</div></div>
+    <div class="ib-stat"><div class="ib-stat-val" id="ib-delay"></div><div class="ib-stat-lbl">Rain delay</div></div>
+    <div class="ib-stat"><div class="ib-stat-val" id="ib-freq"></div><div class="ib-stat-lbl">Incidents/yr</div></div>
+    <div class="ib-stat"><div class="ib-stat-val" id="ib-airport"></div><div class="ib-stat-lbl">To airport</div></div>
+  </div>
+  <div class="ib-causes" id="ib-causes"></div>
+  <div class="ib-desc" id="ib-desc"></div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// ── DATA ──────────────────────────────────────────────────────────────────────
+// type: flood | choke | both
+// riskLevel: critical | high
+const zones = [
+  // ── FLOOD ZONES ────────────────────────────────────────────────────────────
+  {id:1,name:"Bellandur Lake & Surroundings",lat:12.9282,lng:77.6780,radius:950,type:"flood",riskLevel:"critical",
+   floodFreq:12,monDelay:"Full day",airportTime:"70–100 min",
+   desc:"Bangalore's largest lake overflows every heavy rain. Toxic froth adds hazard. Avoid June–Sept entirely.",
+   causes:["Lake overflow","Sewage inflow","Encroachment","Poor drainage"]},
+  {id:2,name:"Varthur Lake & Road",lat:12.9448,lng:77.7320,radius:800,type:"flood",riskLevel:"critical",
+   floodFreq:10,monDelay:"12+ hrs",airportTime:"80–120 min",
+   desc:"Lake bund breached in 2022 flooding entire Varthur Hobli. Residential complexes water-logged for 2–5 days.",
+   causes:["Bund weakness","Encroachment","Storm drain collapse","Raw sewage"]},
+  {id:3,name:"Kalkere – Ramamurthy Nagar",lat:13.0076,lng:77.6763,radius:720,type:"flood",riskLevel:"critical",
+   floodFreq:6,monDelay:"4–12 hrs",airportTime:"40–65 min",
+   desc:"Kalkere Lake floods Ramamurthy Nagar main road. 2022 floods submerged streets for 3 days.",
+   causes:["Lake overflow","Drain under-capacity","Low elevation"]},
+  {id:4,name:"Agara Lake – HSR Layout",lat:12.9111,lng:77.6435,radius:700,type:"flood",riskLevel:"high",
+   floodFreq:5,monDelay:"6–18 hrs",airportTime:"65–85 min",
+   desc:"Agara Lake overflow floods HSR Sector 1, 2, 7 streets. 1–2 ft water inside ground floors reported.",
+   causes:["Lake overflow","Blocked drains","Encroachment","Low-lying roads"]},
+  {id:5,name:"Hennur Road – HBR Layout",lat:13.0290,lng:77.6508,radius:700,type:"flood",riskLevel:"high",
+   floodFreq:5,monDelay:"3–8 hrs",airportTime:"35–55 min",
+   desc:"Hennur main road and HBR tank overflow annually. Vehicles regularly stranded.",
+   causes:["Tank overflow","Incomplete road works","Blocked nalas","Heavy construction"]},
+  {id:6,name:"Nagarabhavi – RR Nagar",lat:12.9576,lng:77.5078,radius:680,type:"flood",riskLevel:"high",
+   floodFreq:4,monDelay:"4–10 hrs",airportTime:"65–85 min",
+   desc:"60% of storm drains blocked per 2023 survey. Residential plots flood knee-deep.",
+   causes:["Tank overflow","Blocked drains","Low terrain","Dense construction"]},
+  {id:7,name:"Yelachenahalli – JP Nagar 8th Phase",lat:12.8762,lng:77.5816,radius:660,type:"flood",riskLevel:"high",
+   floodFreq:4,monDelay:"6–24 hrs",airportTime:"72–90 min",
+   desc:"Under-construction areas with disrupted drainage. Floods within 30 min of heavy rain.",
+   causes:["Disturbed drainage","Under-construction roads","Low-lying terrain"]},
+  {id:8,name:"Mysore Rd – Kengeri underpass",lat:12.9149,lng:77.5150,radius:600,type:"flood",riskLevel:"high",
+   floodFreq:5,monDelay:"3–7 hrs",airportTime:"60–80 min",
+   desc:"Kengeri underpass and adjacent nalas flood frequently, cutting off the Mysore Road corridor.",
+   causes:["Underpass sump failure","Nala overflow","Poor road gradient"]},
+  // ── CHOKE POINTS ───────────────────────────────────────────────────────────
+  {id:9,name:"Silk Board Junction",lat:12.9175,lng:77.6229,radius:500,type:"choke",riskLevel:"critical",
+   floodFreq:3,monDelay:"2–3 hrs added",airportTime:"55–75 min",
+   desc:"India's most congested junction. Peak hour wait 45–60 min even dry. Rain adds 2–3 hrs. 300,000+ vehicles/day.",
+   causes:["Junction design","Metro construction","No flyover bypass","Over 300k vehicles/day"]},
+  {id:10,name:"Marathahalli Bridge",lat:12.9551,lng:77.7019,radius:480,type:"choke",riskLevel:"critical",
+   floodFreq:2,monDelay:"1–3 hrs",airportTime:"58–80 min",
+   desc:"Narrow bridge with no parallel alternate. Bottleneck for entire east Bangalore. Gridlock forms in 10 min of rain.",
+   causes:["Single bridge","No parallel route","High IT traffic","On-ramp merges"]},
+  {id:11,name:"Hebbal Flyover – Esteem Mall Jn",lat:13.0358,lng:77.5972,radius:520,type:"choke",riskLevel:"high",
+   floodFreq:2,monDelay:"1–2.5 hrs",airportTime:"25–45 min",
+   desc:"5-road convergence. Service road floods, all traffic forced onto flyover causing 2–3 km tailbacks.",
+   causes:["5-road convergence","Service road flooding","No signal sync"]},
+  {id:12,name:"Rajajinagar – Chord Road underpass",lat:13.0064,lng:77.5539,radius:520,type:"choke",riskLevel:"high",
+   floodFreq:2,monDelay:"1–2 hrs",airportTime:"42–60 min",
+   desc:"Metro construction narrowed to one lane. Underpass floods in moderate rain. West BLR pinch point.",
+   causes:["Metro construction","Underpass flooding","Lane narrowing","Commercial density"]},
+  {id:13,name:"Bannerghatta Rd – NICE Road Jn",lat:12.8876,lng:77.5953,radius:520,type:"choke",riskLevel:"high",
+   floodFreq:3,monDelay:"1–2 hrs",airportTime:"70–90 min",
+   desc:"NICE Road merge conflicts. One of Bangalore's most polluted and congested southern corridors.",
+   causes:["NICE Rd merge","Residential density","No alternates","Poor signal timing"]},
+  {id:14,name:"KR Puram – Tin Factory Jn",lat:13.0147,lng:77.6652,radius:520,type:"choke",riskLevel:"high",
+   floodFreq:2,monDelay:"1–2 hrs",airportTime:"40–60 min",
+   desc:"Primary interchange for Whitefield IT corridor and ITPL. Metro work eliminated a lane. Peak wait 60+ min.",
+   causes:["Metro lane reduction","IT corridor gateway","Bus terminal spillover"]},
+  {id:15,name:"Tumkur Rd – Yeshwanthpur Jn",lat:13.0230,lng:77.5500,radius:490,type:"choke",riskLevel:"high",
+   floodFreq:2,monDelay:"1–2 hrs",airportTime:"38–55 min",
+   desc:"Heavy goods vehicles from Peenya industrial zone merge with city traffic. Persistently slow mornings.",
+   causes:["Industrial HGV traffic","Narrow carriageway","Rail level crossing nearby"]},
+  // ── DUAL RISK (FLOOD + CHOKE) ──────────────────────────────────────────────
+  {id:16,name:"ORR – Marathahalli to Silk Board",lat:12.9352,lng:77.6902,radius:1100,type:"both",riskLevel:"critical",
+   floodFreq:8,monDelay:"3–5 hrs",airportTime:"65–90 min",
+   desc:"Bangalore's single worst corridor. Repeated flooding AND worst sustained congestion. Avoid all rain days.",
+   causes:["Lake overflow","Nala breach","Over 400k vehicles/day","No alternate corridor"]},
+  {id:17,name:"Whitefield – ITPL Junction",lat:12.9870,lng:77.7480,radius:820,type:"both",riskLevel:"critical",
+   floodFreq:7,monDelay:"2–4 hrs",airportTime:"75–110 min",
+   desc:"Poor storm drains + 80,000 daily IT commuters = guaranteed gridlock in any rain.",
+   causes:["Inadequate drains","Heavy IT traffic","Road encroachment","Nala overflow"]},
+  {id:18,name:"KR Puram Bridge – NH44",lat:13.0095,lng:77.6963,radius:750,type:"both",riskLevel:"critical",
+   floodFreq:6,monDelay:"2–5 hrs",airportTime:"45–70 min",
+   desc:"Bridge floods when drains overflow, blocking the only east-west corridor for 60,000+ vehicles.",
+   causes:["River drain overflow","Bridge underpass flood","Construction debris"]},
+  {id:19,name:"Ejipura – Koramangala 4th Block",lat:12.9389,lng:77.6183,radius:640,type:"both",riskLevel:"high",
+   floodFreq:4,monDelay:"1–3 hrs",airportTime:"60–80 min",
+   desc:"Ejipura underpass floods in moderate rain, blocking Koramangala–Indiranagar access. 80+ incidents in 2023 alone.",
+   causes:["Underpass design","Drain blockage","High traffic volume"]},
+  {id:20,name:"Sarjapur Rd – Carmelram",lat:12.9068,lng:77.6862,radius:700,type:"both",riskLevel:"high",
+   floodFreq:4,monDelay:"2–5 hrs",airportTime:"75–100 min",
+   desc:"200+ apartment complexes added in 8 yrs, no proportional infrastructure. Floods mid-stretch during rain.",
+   causes:["Rapid urbanisation","Blocked nalas","150,000 vehicles/day","No parallel roads"]},
+  {id:21,name:"Thanisandra – Nagawara Jn",lat:13.0540,lng:77.6360,radius:720,type:"both",riskLevel:"high",
+   floodFreq:4,monDelay:"1–2 hrs",airportTime:"30–50 min",
+   desc:"Waterlogging even in moderate rain. Bottleneck for 40,000 Manyata Tech Park workers daily.",
+   causes:["Poor road gradient","Nala encroachment","High vehicle density"]},
+  {id:22,name:"Doddanekundi – EPIP Zone",lat:12.9582,lng:77.7031,radius:700,type:"both",riskLevel:"high",
+   floodFreq:5,monDelay:"2–4 hrs",airportTime:"55–75 min",
+   desc:"Flanked by water bodies on both sides. Gridlock forms within 15 min of rain onset.",
+   causes:["Adjacent lakes","Low terrain","No storm drains in industrial zone"]},
+  {id:23,name:"Peenya – Dasarahalli",lat:13.0396,lng:77.5173,radius:700,type:"both",riskLevel:"high",
+   floodFreq:3,monDelay:"1–3 hrs",airportTime:"38–55 min",
+   desc:"Asia's largest industrial area sees heavy goods traffic. Rain causes flash flooding and road damage.",
+   causes:["Industrial drainage failure","HGV damage","Nala overflow"]},
+];
+
+// Extra: standalone choke point pin markers (intersections too small for circles)
+const chokePoints = [
+  {name:"Hebbal Lakeside Jn",lat:13.0445,lng:77.5937,delay:"45–90 min",note:"Airport Rd pinch before NH44 entry"},
+  {name:"Ulsoor Rd – MG Rd cross",lat:12.9762,lng:77.6161,delay:"30–60 min",note:"CBD grid-lock hub, no U-turns"},
+  {name:"Madiwala Check Post",lat:12.9230,lng:77.6205,delay:"30–60 min",note:"BTM–Koramangala–Electronic City merge"},
+  {name:"Nagawara Circle",lat:13.0463,lng:77.6262,delay:"20–45 min",note:"Thanisandra + Hennur + Bellary Rd merge"},
+  {name:"Iblur Jn – Sarjapur–ORR",lat:12.9267,lng:77.6706,delay:"30–75 min",note:"Sarjapur Rd terminates into ORR chaos"},
+  {name:"Mysore Rd – NICE Rd Jn",lat:12.9400,lng:77.5200,delay:"25–55 min",note:"South-west gateway, HGV + passenger mix"},
+  {name:"Old Airport Rd – Domlur",lat:12.9609,lng:77.6368,delay:"20–45 min",note:"Narrow road, high density commercial"},
+  {name:"Devanahalli – NH44 toll",lat:13.2520,lng:77.7110,delay:"15–30 min",note:"Airport approach queue on busy days"},
+];
+
+// ── MAP INIT ──────────────────────────────────────────────────────────────────
+const map = L.map('map',{center:[12.9716,77.5946],zoom:12,zoomControl:true,preferCanvas:true});
+// Light CartoDB basemap
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{
+  attribution:'© OpenStreetMap, © CARTO',subdomains:'abcd',maxZoom:19
+}).addTo(map);
+
+// Zoom control bottom-left
+map.zoomControl.setPosition('bottomleft');
+
+// ── DESTINATION MARKERS ───────────────────────────────────────────────────────
+function destIcon(label,bg){
+  return L.divIcon({
+    html:`<div style="background:${bg};color:white;font-size:10px;font-weight:700;padding:4px 10px;border-radius:20px;border:2px solid white;font-family:'JetBrains Mono',monospace;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.2);">${label}</div>`,
+    className:'',iconAnchor:[50,12]
+  });
+}
+L.marker([13.1979,77.7063],{icon:destIcon('✈ KIA Airport','#1d4ed8'),zIndexOffset:1000}).addTo(map);
+L.marker([12.9779,77.5724],{icon:destIcon('🚉 City Stn','#0f766e'),zIndexOffset:1000}).addTo(map);
+
+// ── CHOKE POINT PINS ──────────────────────────────────────────────────────────
+const chokeIcon = L.divIcon({
+  html:`<div style="width:12px;height:12px;border-radius:50%;background:#ea580c;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.25);"></div>`,
+  className:'',iconAnchor:[6,6]
+});
+chokePoints.forEach(cp=>{
+  const m = L.marker([cp.lat,cp.lng],{icon:chokeIcon,zIndexOffset:500}).addTo(map);
+  m.bindPopup(`<div style="font-family:'Manrope',sans-serif;min-width:180px;">
+    <div style="font-size:9px;font-weight:700;letter-spacing:0.06em;color:#ea580c;margin-bottom:4px;font-family:'JetBrains Mono',monospace;">CHOKE POINT</div>
+    <div style="font-size:13px;font-weight:700;margin-bottom:4px;">${cp.name}</div>
+    <div style="font-size:11px;color:#6b6860;"><b style="color:#1a1917;">Delay:</b> ${cp.delay}</div>
+    <div style="font-size:11px;color:#6b6860;margin-top:3px;">${cp.note}</div>
+  </div>`,{maxWidth:220});
+});
+
+// ── ZONE CIRCLES ──────────────────────────────────────────────────────────────
+let drawnLayers = [];
+let activeFilter = 'all';
+let selectedId = null;
+
+function zoneStyle(z){
+  const r=z.riskLevel==='critical';
+  if(z.type==='both')    return {fill:'rgba(124,58,237,0.18)',stroke:'rgba(124,58,237,0.75)',w:r?2.5:1.5,dash:r?null:'6,4'};
+  if(z.type==='flood'&&r) return {fill:'rgba(220,38,38,0.18)',stroke:'rgba(220,38,38,0.8)', w:2.5,dash:null};
+  if(z.type==='flood')    return {fill:'rgba(245,158,11,0.16)',stroke:'rgba(217,119,6,0.7)', w:1.5,dash:'6,4'};
+  if(z.riskLevel==='critical') return {fill:'rgba(234,88,12,0.18)',stroke:'rgba(234,88,12,0.8)',w:2.5,dash:null};
+  return {fill:'rgba(234,88,12,0.13)',stroke:'rgba(234,88,12,0.65)',w:1.5,dash:'6,4'};
+}
+
+function buildMap(filter){
+  drawnLayers.forEach(l=>{map.removeLayer(l.circle);if(l.label)map.removeLayer(l.label);});
+  drawnLayers=[];
+  const visible=zones.filter(z=>{
+    if(filter==='flood')  return z.type==='flood'||z.type==='both';
+    if(filter==='choke')  return z.type==='choke'||z.type==='both';
+    if(filter==='both')   return z.type==='both';
+    return true;
+  });
+  visible.forEach(z=>{
+    const s=zoneStyle(z);
+    const circle=L.circle([z.lat,z.lng],{
+      radius:z.radius,color:s.stroke,fillColor:s.fill,
+      fillOpacity:1,weight:s.w,dashArray:s.dash
+    }).addTo(map);
+    circle.on('click',()=>showInfo(z));
+    const label=L.marker([z.lat,z.lng],{
+      icon:L.divIcon({
+        html:`<div style="font-size:9px;font-weight:700;font-family:'Manrope',sans-serif;color:#1a1917;text-align:center;white-space:nowrap;text-shadow:0 1px 2px rgba(255,255,255,0.8),0 0 6px white;pointer-events:none;">${z.name.split('–')[0].trim()}</div>`,
+        className:'',iconAnchor:[50,6]
+      }),interactive:false
+    }).addTo(map);
+    drawnLayers.push({circle,label,zone:z});
+  });
+  buildList(visible);
+  updateSummary(visible);
+}
+
+// ── INFO BOX ──────────────────────────────────────────────────────────────────
+function showInfo(z){
+  selectedId=z.id;
+  const wx=parseFloat(document.getElementById('wx-select').value);
+  const tod=parseFloat(document.getElementById('tod-select').value);
+
+  const typeMap={flood:'FLOOD RISK ZONE',choke:'TRAFFIC CHOKE POINT',both:'FLOOD + CHOKE ZONE'};
+  const typeBg={flood:'#fef2f2',choke:'#fff7ed',both:'#f5f3ff'};
+  const typeCol={flood:'#dc2626',choke:'#ea580c',both:'#7c3aed'};
+  document.getElementById('ib-typetag').textContent=typeMap[z.type];
+  document.getElementById('ib-typetag').style.background=typeBg[z.type];
+  document.getElementById('ib-typetag').style.color=typeCol[z.type];
+  document.getElementById('ib-name').textContent=z.name;
+  document.getElementById('ib-risk').textContent=z.riskLevel.toUpperCase();
+  document.getElementById('ib-risk').style.color=z.riskLevel==='critical'?'#dc2626':'#d97706';
+  document.getElementById('ib-delay').textContent=z.monDelay;
+  document.getElementById('ib-freq').textContent=z.floodFreq+' /yr';
+  // Adjust airport time by wx+tod
+  const baseMin=parseInt(z.airportTime);
+  const adjMin=Math.round(baseMin*wx*tod);
+  document.getElementById('ib-airport').textContent='~'+adjMin+' min';
+  document.getElementById('ib-desc').textContent=z.desc;
+  const causesEl=document.getElementById('ib-causes');
+  causesEl.innerHTML=z.causes.map(c=>`<span class="cause-tag">${c}</span>`).join('');
+  document.getElementById('infobox').style.display='block';
+  map.setView([z.lat,z.lng],14,{animate:true});
+  document.querySelectorAll('.zone-card').forEach(c=>c.classList.toggle('selected',+c.dataset.id===z.id));
+}
+
+// ── SIDE LIST ─────────────────────────────────────────────────────────────────
+const typeLabel={flood:'FLOOD',choke:'CHOKE',both:'BOTH'};
+const typeTagBg={flood:'#fef2f2',choke:'#fff7ed',both:'#f5f3ff'};
+const typeTagCol={flood:'#dc2626',choke:'#ea580c',both:'#7c3aed'};
+const dotCol={flood:'#dc2626',choke:'#ea580c',both:'#7c3aed'};
+
+function buildList(visible){
+  const list=document.getElementById('zone-list');
+  list.innerHTML='';
+  const groups=[
+    {label:'Critical risk',items:visible.filter(z=>z.riskLevel==='critical')},
+    {label:'High risk',items:visible.filter(z=>z.riskLevel==='high')},
+  ];
+  groups.forEach(g=>{
+    if(!g.items.length) return;
+    const lbl=document.createElement('div');
+    lbl.className='list-section-label';lbl.textContent=g.label;
+    list.appendChild(lbl);
+    g.items.forEach(z=>{
+      const card=document.createElement('div');
+      card.className='zone-card';card.dataset.id=z.id;
+      card.innerHTML=`
+        <div class="zone-card-header">
+          <div class="zone-card-dot" style="background:${dotCol[z.type]}"></div>
+          <div class="zone-card-name">${z.name}</div>
+          <span class="zone-tag" style="background:${typeTagBg[z.type]};color:${typeTagCol[z.type]}">${typeLabel[z.type]}</span>
+        </div>
+        <div class="zone-card-meta">
+          <div class="zone-meta-item">Delay: <span>${z.monDelay}</span></div>
+          <div class="zone-meta-item">Freq: <span>${z.floodFreq}/yr</span></div>
+        </div>`;
+      card.onclick=()=>showInfo(z);
+      list.appendChild(card);
+    });
+  });
+}
+
+function updateSummary(visible){
+  document.getElementById('s-total').textContent=visible.length;
+  document.getElementById('s-flood').textContent=visible.filter(z=>z.type==='flood').length;
+  document.getElementById('s-choke').textContent=visible.filter(z=>z.type==='choke').length;
+  document.getElementById('s-both').textContent=visible.filter(z=>z.type==='both').length;
+  document.getElementById('fc-all').textContent=zones.length;
+  document.getElementById('fc-flood').textContent=zones.filter(z=>z.type==='flood'||z.type==='both').length;
+  document.getElementById('fc-choke').textContent=zones.filter(z=>z.type==='choke'||z.type==='both').length;
+  document.getElementById('fc-both').textContent=zones.filter(z=>z.type==='both').length;
+}
+
+function setFilter(btn,filter){
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  activeFilter=filter;
+  buildMap(filter);
+}
+
+function applyWx(){
+  if(selectedId){
+    const z=zones.find(z=>z.id===selectedId);
+    if(z) showInfo(z);
+  }
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+buildMap('all');
+</script>
+</body>
+</html>
